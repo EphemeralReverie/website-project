@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { loadPlayerJS, type PlayerJS } from "@/lib/playerjs";
+import { loadPlayerJS } from "@/lib/playerjs";
 
 const HERO_SRC =
   "https://player.mediadelivery.net/embed/792798/9c08378f-8829-488b-873b-adaf290b5354" +
@@ -20,17 +20,21 @@ if (typeof window !== "undefined") void loadPlayerJS();
  * Full-bleed 16:9 background loop. The iframe is sized to "cover" the viewport
  * (never distorted — the overflow is cropped) and has pointer-events disabled.
  *
- * The Bunny player briefly shows its own play button / poster before
- * autoplay kicks in. That UI lives inside a cross-origin iframe and can't be
- * styled, so a black cover sits on top and fades out only once the video
- * reports that it is actually playing.
+ * Speed: the iframe is part of the server-rendered HTML, so the browser starts
+ * loading the video the moment the page arrives, without waiting for any
+ * JavaScript. Player.js attaches afterwards and keeps asking the player to
+ * report in until it does, so it doesn't matter which one gets there first.
+ *
+ * Bunny's player shows its own play button before autoplay kicks in. That UI
+ * lives inside a cross-origin iframe and can't be styled, so a cover (the
+ * video's thumbnail on black) sits on top and fades out as soon as the video
+ * is really playing.
  */
 export default function HeroVideo() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [lib, setLib] = useState<PlayerJS | null | undefined>(undefined); // undefined = still loading
+  const posterRef = useRef<HTMLImageElement>(null);
   const [playing, setPlaying] = useState(false);
   const [posterOk, setPosterOk] = useState(true);
-  const posterRef = useRef<HTMLImageElement>(null);
 
   // The poster can fail before hydration (no onError handler attached yet).
   useEffect(() => {
@@ -38,18 +42,11 @@ export default function HeroVideo() {
     if (img && img.complete && img.naturalWidth === 0) setPosterOk(false);
   }, []);
 
-  // The iframe is only created once the Player.js library is ready, so the
-  // library can attach to it before it finishes loading.
   useEffect(() => {
     let alive = true;
-    loadPlayerJS().then((l) => alive && setLib(l));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (lib === undefined) return;
+    let ready = false;
+    let attempts = 0;
+    let poll = 0;
     let revealTimer = 0;
     const reveal = () => {
       window.clearTimeout(revealTimer);
@@ -57,14 +54,24 @@ export default function HeroVideo() {
     };
     // Failsafe: never keep the cover up for long if the player can't report in.
     const failsafe = window.setTimeout(reveal, 4000);
-    if (lib && iframeRef.current) {
-      const player = new lib.Player(iframeRef.current);
-      player.on("ready", () => {
+
+    loadPlayerJS().then((lib) => {
+      const iframe = iframeRef.current;
+      if (!alive || !lib || !iframe) return;
+      const player = new lib.Player(iframe);
+      // The iframe may already have loaded (and announced itself) before this
+      // code ran, so don't wait for its onload event: allow messages now.
+      (player as unknown as { loaded: boolean }).loaded = true;
+
+      const onReady = () => {
+        if (ready) return;
+        ready = true;
+        window.clearInterval(poll);
         player.mute();
         player.setLoop(true);
         player.play();
-        // "play" can fire while Bunny's own play button is still on screen,
-        // so don't lift the cover on it straight away. Lift it as soon as the
+        // "play" can fire while Bunny's play button is still on screen, so
+        // don't lift the cover on it straight away. Lift it as soon as the
         // video has actually advanced; if no time updates arrive, shortly
         // after "play" instead.
         player.on("play", () => {
@@ -75,13 +82,22 @@ export default function HeroVideo() {
           const seconds = (value as { seconds?: number } | undefined)?.seconds;
           if (typeof seconds === "number" && seconds > 0.2) reveal();
         });
-      });
-    }
+      };
+      // Ask now, and keep asking until the player answers.
+      player.on("ready", onReady);
+      poll = window.setInterval(() => {
+        if (ready || ++attempts > 20) return window.clearInterval(poll);
+        player.on("ready", onReady);
+      }, 400);
+    });
+
     return () => {
+      alive = false;
       window.clearTimeout(failsafe);
       window.clearTimeout(revealTimer);
+      window.clearInterval(poll);
     };
-  }, [lib]);
+  }, []);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-black">
@@ -92,29 +108,27 @@ export default function HeroVideo() {
           height: "max(100dvh, calc(100vw * 9 / 16))",
         }}
       >
-        {lib !== undefined && (
-          <iframe
-            ref={iframeRef}
-            src={HERO_SRC}
-            title="Ephemeral Reverie hero"
-            loading="eager"
-            tabIndex={-1}
-            aria-hidden="true"
-            allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-            style={{
-              border: 0,
-              position: "absolute",
-              top: 0,
-              height: "100%",
-              width: "100%",
-              pointerEvents: "none",
-            }}
-          />
-        )}
+        <iframe
+          ref={iframeRef}
+          src={HERO_SRC}
+          title="Ephemeral Reverie hero"
+          loading="eager"
+          tabIndex={-1}
+          aria-hidden="true"
+          allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+          style={{
+            border: 0,
+            position: "absolute",
+            top: 0,
+            height: "100%",
+            width: "100%",
+            pointerEvents: "none",
+          }}
+        />
       </div>
+
       {/* Cover: hides Bunny's own start-up UI (play button) until the video is
-          really playing. It shows the video's thumbnail so the screen is never
-          just black while the player loads. */}
+          really playing, and shows the video's thumbnail instead of black. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-700"

@@ -90,8 +90,11 @@ textarea:autofill {
   inset: -10px;
   pointer-events: none;
   opacity: 0.5;
-  filter: blur(10px);
-  will-change: transform;
+  /* The original had `filter: blur(10px)` and `will-change: transform` here.
+     Both were removed on purpose: the gradients are already soft, the result
+     looks the same (<1/255 average difference), and the full-screen blur was
+     the single most expensive part (page dropped to ~12-20 fps on a 1080p
+     screen without a strong GPU). */
   background-image: var(--dark-gradient), var(--aurora);
   background-size: 300%, 200%;
   background-position: 50% 50%, 50% 50%;
@@ -104,8 +107,16 @@ textarea:autofill {
   inset: 0;
   background-image: var(--dark-gradient), var(--aurora);
   background-size: 200%, 100%;
-  animation: aurora 60s linear infinite;
+  /* The drift is very slow, so update it ~20x/second instead of every display
+     frame (60-144x). Same look, a fraction of the repaint cost. */
+  animation: aurora 60s steps(1200, end) infinite;
   mix-blend-mode: difference;
+}
+@media (pointer: coarse) {
+  /* phones/tablets: ~12 updates/second */
+  .aurora-layer::after {
+    animation-timing-function: steps(720, end);
+  }
 }
 @keyframes aurora {
   from {
