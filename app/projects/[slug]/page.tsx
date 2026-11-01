@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AuroraBackground } from "@/components/ui/aurora-background";
 import WatchPlayer from "@/components/watch-player";
 import { getProject, projects } from "@/lib/projects";
 
@@ -23,7 +22,9 @@ export default async function WatchPage({ params }: Props) {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-white">
-      <AuroraBackground />
+      {/* Plain black on purpose: the film is the star, and a full-screen
+          animated background competing for the GPU can make playback stutter. */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-black" />
 
       <main className="relative z-10 px-4 pb-40 pt-28 sm:px-6 sm:pt-32">
         {/* The column is capped by the screen height as well as its width, so

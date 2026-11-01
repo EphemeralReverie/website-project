@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { preconnect } from "react-dom";
 import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 import SiteFooter from "@/components/site-footer";
@@ -25,6 +26,9 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Open the connections to Bunny early so the hero video starts sooner.
+  preconnect("https://player.mediadelivery.net");
+  preconnect("https://vz-8b01c340-1ec.b-cdn.net");
   return (
     <html lang="en">
       <body className="text-white antialiased">
