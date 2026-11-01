@@ -78,7 +78,7 @@ export default function ContactForm() {
 
       <div aria-live="polite" className="min-h-6 text-center text-sm">
         {status === "success" && (
-          <p className="text-emerald-300">Thank you — your message has been sent.</p>
+          <p className="text-emerald-300">Thank you. Your message has been sent.</p>
         )}
         {status === "error" && <p className="text-red-300">{error}</p>}
       </div>

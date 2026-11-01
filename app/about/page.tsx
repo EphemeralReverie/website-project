@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import SiteHeader from "@/components/site-header";
 import { ShaderBackground } from "@/components/ui/shader-state";
 
 export const metadata: Metadata = { title: "About" };
@@ -8,14 +7,13 @@ export default function AboutPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-white flex flex-col justify-between">
       <ShaderBackground className="absolute inset-0 z-0 h-full w-full pointer-events-none" />
-      <SiteHeader />
 
-      <main className="relative z-10 max-w-4xl mx-auto px-6 py-20 flex flex-col items-center text-center">
+      <main className="font-tech relative z-10 max-w-4xl mx-auto px-6 pt-20 pb-40 flex flex-col items-center text-center">
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 md:p-12 shadow-2xl max-w-2xl w-full mt-12">
-          <h1 className="text-3xl font-medium tracking-tight md:text-4xl">
+          <h1 className="text-2xl tracking-tight md:text-3xl">
             About Ephemeral Reverie
           </h1>
-          <div className="mt-6 space-y-5 text-base leading-relaxed text-white/80">
+          <div className="mt-6 space-y-5 text-sm leading-relaxed text-white/85 md:text-[15px]">
             <p>
               Ephemeral Reverie refers to that transient space where mind and
               imagination align. Founded by Nicolai, the studio exists to
