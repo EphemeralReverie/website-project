@@ -7,7 +7,9 @@ attribute vec2 a_position;
 void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
 `;
 
-// Slow, dark, domain-warped fbm "nebula" in deep blues / violets.
+// Soft blurred colour glows over a dark slate base, with film grain.
+// (Matches the reference: dark slate-blue left, periwinkle glow lower-right,
+// mauve haze top-right.) The glows drift very slowly.
 const FRAGMENT = `
 precision highp float;
 uniform vec2 u_resolution;
@@ -19,54 +21,39 @@ float hash(vec2 p) {
   return fract(p.x * p.y);
 }
 
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = hash(i);
-  float b = hash(i + vec2(1.0, 0.0));
-  float c = hash(i + vec2(0.0, 1.0));
-  float d = hash(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-float fbm(vec2 p) {
-  float v = 0.0;
-  float a = 0.5;
-  mat2 rot = mat2(0.8, -0.6, 0.6, 0.8);
-  for (int i = 0; i < 5; i++) {
-    v += a * noise(p);
-    p = rot * p * 2.0 + 17.0;
-    a *= 0.5;
-  }
-  return v;
+// Smooth gaussian-like glow. Distances are aspect-corrected so blobs stay round.
+float glow(vec2 uv, vec2 c, vec2 radius, float aspect) {
+  vec2 d = (uv - c) * vec2(aspect, 1.0) / radius;
+  return exp(-dot(d, d));
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-  vec2 p = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.x, u_resolution.y);
-  float t = u_time * 0.06;
+  float aspect = u_resolution.x / u_resolution.y;
+  float t = u_time * 0.12;
 
-  vec2 q = vec2(fbm(p * 1.6 + t), fbm(p * 1.6 - t + 5.2));
-  vec2 r = vec2(
-    fbm(p * 1.6 + 3.0 * q + vec2(1.7, 9.2) + 0.8 * t),
-    fbm(p * 1.6 + 3.0 * q + vec2(8.3, 2.8) - 0.6 * t)
-  );
-  float f = fbm(p * 1.6 + 3.0 * r);
+  vec3 base     = vec3(0.165, 0.178, 0.255); // dark slate-blue  (#2a2d41)
+  vec3 periwink = vec3(0.420, 0.390, 0.800); // periwinkle        (#6b63cc)
+  vec3 mauve    = vec3(0.600, 0.520, 0.600); // dusty mauve       (#998599)
+  vec3 deep     = vec3(0.090, 0.098, 0.165); // shadow, far left
 
-  vec3 base   = vec3(0.008, 0.023, 0.090);  // near slate-950
-  vec3 indigo = vec3(0.090, 0.110, 0.420);
-  vec3 violet = vec3(0.330, 0.160, 0.560);
-  vec3 cyan   = vec3(0.090, 0.380, 0.550);
+  // large, slowly drifting glow centres (uv, y up)
+  vec2 c1 = vec2(0.70 + 0.05 * sin(t),        0.32 + 0.05 * cos(t * 0.8));
+  vec2 c2 = vec2(0.78 + 0.05 * cos(t * 0.7),  0.98 + 0.04 * sin(t * 0.9));
+  vec2 c3 = vec2(0.92 + 0.03 * sin(t * 0.6),  0.12 + 0.04 * cos(t));
 
-  vec3 col = mix(base, indigo, smoothstep(0.15, 0.85, f));
-  col = mix(col, violet, smoothstep(0.35, 1.0, length(q)) * 0.55);
-  col = mix(col, cyan, smoothstep(0.55, 1.1, length(r)) * 0.35);
+  float g1 = glow(uv, c1, vec2(0.46, 0.50), aspect * 0.62);
+  float g2 = glow(uv, c2, vec2(0.40, 0.34), aspect * 0.62);
+  float g3 = glow(uv, c3, vec2(0.40, 0.40), aspect * 0.62);
 
-  // soft vignette + film grain
-  float vig = smoothstep(1.25, 0.25, length(uv - 0.5) * 1.5);
-  col *= mix(0.45, 1.0, vig);
-  col += (hash(gl_FragCoord.xy + fract(u_time)) - 0.5) * 0.018;
+  vec3 col = base;
+  col = mix(col, deep, smoothstep(0.55, 0.0, uv.x) * 0.45);
+  col = mix(col, periwink, clamp(g1 * 0.95 + g3 * 0.75, 0.0, 1.0));
+  col = mix(col, mauve, clamp(g2 * 0.85, 0.0, 1.0));
+
+  // fine film grain (refreshes ~8x/sec so it feels alive but calm)
+  float n = hash(gl_FragCoord.xy + floor(u_time * 8.0) * 17.0) - 0.5;
+  col += n * 0.075;
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -126,7 +113,7 @@ export function ShaderBackground({ className }: ShaderBackgroundProps) {
     const uTime = gl.getUniformLocation(program, "u_time");
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
       const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
