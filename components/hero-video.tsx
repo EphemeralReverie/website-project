@@ -21,7 +21,7 @@ const VIDEO_ID = "9c08378f-8829-488b-873b-adaf290b5354";
 const CDN = "https://vz-8b01c340-1ec.b-cdn.net"; // Bunny Stream pull zone
 const MP4_SOURCES = [`${CDN}/${VIDEO_ID}/play_720p.mp4`, `${CDN}/${VIDEO_ID}/play_480p.mp4`];
 const HLS_SRC = `${CDN}/${VIDEO_ID}/playlist.m3u8`;
-const POSTER_SRC = `${CDN}/${VIDEO_ID}/thumbnail.jpg`;
+const POSTER_SRC = `${CDN}/${VIDEO_ID}/thumbnail_2b5209f9.jpg`;
 const IFRAME_SRC =
   `https://player.mediadelivery.net/embed/792798/${VIDEO_ID}` +
   "?autoplay=true&loop=true&muted=true&controls=false&preload=true&responsive=false";
