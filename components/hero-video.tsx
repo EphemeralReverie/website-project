@@ -5,7 +5,7 @@ import { loadPlayerJS, type PlayerJS } from "@/lib/playerjs";
 
 const HERO_SRC =
   "https://player.mediadelivery.net/embed/792798/9c08378f-8829-488b-873b-adaf290b5354" +
-  "?autoplay=true&loop=true&muted=true&preload=true&responsive=false";
+  "?autoplay=true&loop=true&muted=true&controls=false&preload=true&responsive=false";
 
 /**
  * Full-bleed 16:9 background loop. The iframe is sized to "cover" the viewport
@@ -33,19 +33,37 @@ export default function HeroVideo() {
 
   useEffect(() => {
     if (lib === undefined) return;
+    let revealTimer = 0;
+    const reveal = () => {
+      window.clearTimeout(revealTimer);
+      setPlaying(true);
+    };
     // Failsafe: never leave the screen black if the player can't report in.
-    const failsafe = window.setTimeout(() => setPlaying(true), 6000);
+    const failsafe = window.setTimeout(reveal, 7000);
     if (lib && iframeRef.current) {
       const player = new lib.Player(iframeRef.current);
       player.on("ready", () => {
         player.mute();
         player.setLoop(true);
         player.play();
-        player.on("play", () => setPlaying(true));
-        player.on("timeupdate", () => setPlaying(true));
+        // "play" fires while Bunny's own play button can still be on screen,
+        // so don't lift the cover on it. Wait until the video has actually
+        // advanced; if no time updates ever arrive, lift it shortly after
+        // "play" instead.
+        player.on("play", () => {
+          window.clearTimeout(revealTimer);
+          revealTimer = window.setTimeout(reveal, 2000);
+        });
+        player.on("timeupdate", (value) => {
+          const seconds = (value as { seconds?: number } | undefined)?.seconds;
+          if (typeof seconds === "number" && seconds > 0.4) reveal();
+        });
       });
     }
-    return () => window.clearTimeout(failsafe);
+    return () => {
+      window.clearTimeout(failsafe);
+      window.clearTimeout(revealTimer);
+    };
   }, [lib]);
 
   return (
@@ -79,7 +97,7 @@ export default function HeroVideo() {
       </div>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-700"
+        className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-1000"
         style={{ opacity: playing ? 0 : 1 }}
       />
     </div>

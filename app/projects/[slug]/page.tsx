@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ShaderBackground } from "@/components/ui/shader-state";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 import WatchPlayer from "@/components/watch-player";
 import { getProject, projects } from "@/lib/projects";
 
@@ -22,8 +22,8 @@ export default async function WatchPage({ params }: Props) {
   if (!project) notFound();
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-white">
-      <ShaderBackground className="absolute inset-0 z-0 h-full w-full pointer-events-none" />
+    <div className="relative min-h-screen w-full overflow-hidden text-white">
+      <AuroraBackground />
 
       <main className="relative z-10 px-4 pb-40 pt-28 sm:px-6 sm:pt-32">
         {/* The column is capped by the screen height as well as its width, so

@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShaderBackground } from "@/components/ui/shader-state";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 import { projects } from "@/lib/projects";
 
 export const metadata: Metadata = { title: "Projects" };
 
 export default function ProjectsPage() {
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-white">
-      <ShaderBackground className="absolute inset-0 z-0 h-full w-full pointer-events-none" />
+    <div className="relative min-h-screen w-full overflow-hidden text-white">
+      <AuroraBackground />
 
       <main className="relative z-10 mx-auto max-w-6xl px-6 pb-40 pt-28 sm:pt-32">
         <h1 className="font-tech mb-10 text-xs uppercase tracking-[0.3em] text-white/80">
