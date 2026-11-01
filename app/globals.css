@@ -5,10 +5,16 @@
     "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+/* Only <html> paints a background: it propagates to the canvas, which sits
+   *behind* the fixed -z-10 aurora layer. An opaque <body>/wrapper background
+   would paint over the aurora and hide it. */
+html {
+  background: #09090b;
+}
+
 html,
 body {
   min-height: 100%;
-  background: #020617;
   color: #fff;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -36,4 +42,81 @@ body {
     inset 0 1px 0 rgb(255 255 255 / 0.45),
     inset 0 -1px 0 rgb(255 255 255 / 0.08),
     0 8px 30px rgb(0 0 0 / 0.25);
+}
+
+/* Browsers paint autofilled fields yellow/blue and ignore normal background
+   styles. Cover the highlight with the field's own dark glass colour. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  -webkit-box-shadow: 0 0 0 1000px #1c1b33 inset;
+  box-shadow: 0 0 0 1000px #1c1b33 inset;
+  transition: background-color 600000s ease-in-out 0s;
+  border-radius: inherit;
+}
+input:autofill,
+textarea:autofill {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  box-shadow: 0 0 0 1000px #1c1b33 inset;
+}
+
+/* ------------------------------------------------------------------ */
+/* Aurora background (21st.dev "Aurora Background", dark variant).      */
+/* Pure CSS: no canvas, no JS, no pointer/touch interaction at all.     */
+/* ------------------------------------------------------------------ */
+.aurora-layer {
+  --dark-gradient: repeating-linear-gradient(
+    100deg,
+    #000 0%,
+    #000 7%,
+    transparent 10%,
+    transparent 12%,
+    #000 16%
+  );
+  --aurora: repeating-linear-gradient(
+    100deg,
+    #3b82f6 10%,
+    #a5b4fc 15%,
+    #93c5fd 20%,
+    #ddd6fe 25%,
+    #60a5fa 30%
+  );
+  position: absolute;
+  inset: -10px;
+  pointer-events: none;
+  opacity: 0.5;
+  filter: blur(10px);
+  will-change: transform;
+  background-image: var(--dark-gradient), var(--aurora);
+  background-size: 300%, 200%;
+  background-position: 50% 50%, 50% 50%;
+  -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+  mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+}
+.aurora-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--dark-gradient), var(--aurora);
+  background-size: 200%, 100%;
+  animation: aurora 60s linear infinite;
+  mix-blend-mode: difference;
+}
+@keyframes aurora {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-layer::after {
+    animation: none;
+  }
 }
