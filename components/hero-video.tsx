@@ -19,7 +19,12 @@ import { loadPlayerJS } from "@/lib/playerjs";
 
 const VIDEO_ID = "9c08378f-8829-488b-873b-adaf290b5354";
 const CDN = "https://vz-8b01c340-1ec.b-cdn.net"; // Bunny Stream pull zone
-const MP4_SOURCES = [`${CDN}/${VIDEO_ID}/play_720p.mp4`, `${CDN}/${VIDEO_ID}/play_480p.mp4`];
+// Best quality first: the browser uses the first file that exists and plays, so
+// a missing 1080p file simply falls through to 720p, then 480p.
+const MP4_BY_HEIGHT = [1080, 720, 480].map((h) => `${CDN}/${VIDEO_ID}/play_${h}p.mp4`);
+const MP4_SOURCES = MP4_BY_HEIGHT;
+// Phones and "data saver" users start at 720p instead, to avoid a heavy download.
+const MP4_LITE = MP4_BY_HEIGHT.slice(1);
 const HLS_SRC = `${CDN}/${VIDEO_ID}/playlist.m3u8`;
 const POSTER_SRC = `${CDN}/${VIDEO_ID}/thumbnail_2b5209f9.jpg`;
 const IFRAME_SRC =
@@ -62,14 +67,27 @@ function DirectHero({ mode, onFail }: { mode: "mp4" | "hls"; onFail: () => void 
     video.addEventListener("playing", stopWatching);
 
     if (mode === "mp4") {
+      const saveData = (navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData;
+      const small = window.matchMedia("(max-width: 820px)").matches || !!saveData;
+      if (small) {
+        // Swap the 1080p-first list for a 720p-first one before much has downloaded.
+        let i = 0;
+        const next = () => {
+          video.src = MP4_LITE[i++];
+          video.load();
+          tryPlay();
+        };
+        video.addEventListener("error", () => (i < MP4_LITE.length ? next() : fail()));
+        next();
+      }
       // Every <source> failed? (404 because MP4 Fallback is off, or not decodable.)
       // The error can happen before this code runs, so look at the state too.
       const check = () => {
-        if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) fail();
+        if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE && !small) fail();
       };
       check();
       timers.push(window.setInterval(check, 300));
-      timers.push(window.setTimeout(fail, 5000)); // nothing playing after 5s
+      timers.push(window.setTimeout(fail, 6000)); // nothing playing after 6s
       tryPlay();
     } else {
       timers.push(window.setTimeout(fail, 7000));
@@ -83,7 +101,13 @@ function DirectHero({ mode, onFail }: { mode: "mp4" | "hls"; onFail: () => void 
           .then(({ default: Hls }) => {
             if (!alive) return;
             if (!Hls.isSupported()) return fail();
-            const h = new Hls({ capLevelToPlayerSize: true, startLevel: 0, maxBufferLength: 12 });
+            // Start from a good estimate of bandwidth (not the lowest quality) and
+            // never go beyond what the screen can show.
+            const h = new Hls({
+              capLevelToPlayerSize: true,
+              abrEwmaDefaultEstimate: 8_000_000,
+              maxBufferLength: 12,
+            });
             hls = h;
             h.on(Hls.Events.ERROR, (_e, data) => data.fatal && fail());
             h.on(Hls.Events.MANIFEST_PARSED, tryPlay);

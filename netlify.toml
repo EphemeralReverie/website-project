@@ -1,8 +1,2 @@
 [build]
   command = "npm run build"
-
-# The background loops never change once published: cache them for a year.
-[[headers]]
-  for = "/aurora/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
