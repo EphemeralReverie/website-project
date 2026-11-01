@@ -1,6 +1,7 @@
 export type Project = {
   slug: string;
   title: string;
+  description: string;
   thumbnail: string;
   /** Bunny.net Stream library ID */
   libraryId: string;
@@ -16,6 +17,8 @@ export const projects: Project[] = [
   {
     slug: "the-curse-of-the-miller",
     title: "The Curse of the Miller | Uncensored & Uncut",
+    description:
+      "A gaunt miller is cursed by the full moon. Independent horror short film. Contains graphic violence. Duration: 2 min 47 sec.",
     thumbnail:
       "https://vz-8b01c340-1ec.b-cdn.net/a3f50d21-4f0c-439d-8424-e5a00fb70f4a/thumbnail_9652666e.jpg",
     libraryId: "792798",

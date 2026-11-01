@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SiteHeader from "@/components/site-header";
 import { ShaderBackground } from "@/components/ui/shader-state";
 import { projects } from "@/lib/projects";
 
@@ -10,10 +9,9 @@ export default function ProjectsPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-white">
       <ShaderBackground className="absolute inset-0 z-0 h-full w-full pointer-events-none" />
-      <SiteHeader />
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-28 sm:pt-32">
-        <h1 className="font-tech mb-10 text-xs uppercase tracking-[0.3em] text-white/70">
+      <main className="relative z-10 mx-auto max-w-6xl px-6 pb-40 pt-28 sm:pt-32">
+        <h1 className="font-tech mb-10 text-xs uppercase tracking-[0.3em] text-white/80">
           Projects
         </h1>
 
@@ -21,7 +19,7 @@ export default function ProjectsPage() {
           {projects.map((p) => (
             <li key={p.slug}>
               <Link href={`/projects/${p.slug}`} className="group block">
-                <h2 className="mb-3 text-base font-medium leading-snug tracking-tight text-white sm:text-lg">
+                <h2 className="font-tech mb-3 text-sm leading-snug tracking-tight text-white sm:text-base">
                   {p.title}
                 </h2>
                 <div className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/50">

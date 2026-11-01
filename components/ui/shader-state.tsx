@@ -312,6 +312,9 @@ const UNIFORMS = {
   timeScale: -0.727,
 }
 
+// Width / height of the shader's fixed composition (see resizeCanvas).
+const COMPOSITION_ASPECT = 1056 / 818
+
 const pendingContextReleases = new WeakMap<HTMLCanvasElement, number>()
 
 export function ShaderBackground({ className }: { className?: string }) {
@@ -419,9 +422,15 @@ export function ShaderBackground({ className }: { className?: string }) {
     const timeAnimated = Math.abs(UNIFORMS.timeScale) > 0.0001
 
     const resizeCanvas = () => {
+      // The shader lays out its colour field relative to the canvas' shorter
+      // side, so on a wide desktop window it looked completely different from
+      // a tall phone screen. Always render at one fixed composition shape
+      // (COMPOSITION_ASPECT) and let `object-fit: cover` scale it to the
+      // element, so every device shows the same picture.
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const rawWidth = Math.max(1, Math.round(bounds.width * dpr))
-      const rawHeight = Math.max(1, Math.round(bounds.height * dpr))
+      const coverWidth = Math.max(bounds.width, bounds.height * COMPOSITION_ASPECT)
+      const rawWidth = Math.max(1, Math.round(coverWidth * dpr))
+      const rawHeight = Math.max(1, Math.round((coverWidth / COMPOSITION_ASPECT) * dpr))
       const pixelScale = Math.min(
         1,
         Math.sqrt(2_000_000 / Math.max(1, rawWidth * rawHeight)),
@@ -588,6 +597,6 @@ export function ShaderBackground({ className }: { className?: string }) {
   }, [])
 
   return (
-    <canvas ref={canvasRef} className={className} style={{ display: "block", width: "100%", height: "100%" }} />
+    <canvas ref={canvasRef} className={className} style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} />
   )
 }
