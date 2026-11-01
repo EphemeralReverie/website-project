@@ -3,44 +3,139 @@
 import { useEffect, useRef, useState } from "react";
 import { loadPlayerJS } from "@/lib/playerjs";
 
-const HERO_SRC =
-  "https://player.mediadelivery.net/embed/792798/9c08378f-8829-488b-873b-adaf290b5354" +
+// ---------------------------------------------------------------------------
+// Hero background loop — three ways to play it, fastest first:
+//
+//  1. "mp4"    A plain <video> pointed at Bunny's MP4 files. It is part of the
+//              server-rendered page, so it starts downloading immediately, needs
+//              no JavaScript and has no player interface at all (so no play
+//              button can ever appear). Requires "MP4 Fallback" to be switched
+//              on for the library in Bunny; if it isn't, this fails instantly...
+//  2. "hls"    ...and we play Bunny's HLS stream in a plain <video> instead
+//              (hls.js, or natively in Safari). Same: no interface, no button.
+//  3. "iframe" Last resort: the official Bunny embed, with a cover that hides
+//              its start-up play button until the video is really playing.
+// ---------------------------------------------------------------------------
+
+const VIDEO_ID = "9c08378f-8829-488b-873b-adaf290b5354";
+const CDN = "https://vz-8b01c340-1ec.b-cdn.net"; // Bunny Stream pull zone
+const MP4_SOURCES = [`${CDN}/${VIDEO_ID}/play_720p.mp4`, `${CDN}/${VIDEO_ID}/play_480p.mp4`];
+const HLS_SRC = `${CDN}/${VIDEO_ID}/playlist.m3u8`;
+const POSTER_SRC = `${CDN}/${VIDEO_ID}/thumbnail.jpg`;
+const IFRAME_SRC =
+  `https://player.mediadelivery.net/embed/792798/${VIDEO_ID}` +
   "?autoplay=true&loop=true&muted=true&controls=false&preload=true&responsive=false";
 
-// Bunny's auto-generated thumbnail of the hero video, shown while the player
-// starts up (instead of a black screen). If it can't load, the cover simply
-// stays black.
-const POSTER_SRC =
-  "https://vz-8b01c340-1ec.b-cdn.net/9c08378f-8829-488b-873b-adaf290b5354/thumbnail.jpg";
+type Mode = "mp4" | "hls" | "iframe";
+
+export default function HeroVideo() {
+  const [mode, setMode] = useState<Mode>("mp4");
+  if (mode === "iframe") return <IframeHero />;
+  return (
+    <DirectHero
+      key={mode}
+      mode={mode}
+      onFail={() => setMode(mode === "mp4" ? "hls" : "iframe")}
+    />
+  );
+}
+
+/* ------------------------------ direct <video> ----------------------------- */
+
+function DirectHero({ mode, onFail }: { mode: "mp4" | "hls"; onFail: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let alive = true;
+    let hls: { destroy: () => void } | undefined;
+    const timers: number[] = [];
+    const fail = () => alive && onFail();
+
+    video.muted = true;
+    video.defaultMuted = true;
+    const tryPlay = () => void video.play().catch(() => {
+      /* autoplay refused (e.g. iOS low-power mode): the poster stays visible */
+    });
+    const stopWatching = () => timers.forEach((t) => window.clearTimeout(t));
+    video.addEventListener("playing", stopWatching);
+
+    if (mode === "mp4") {
+      // Every <source> failed? (404 because MP4 Fallback is off, or not decodable.)
+      // The error can happen before this code runs, so look at the state too.
+      const check = () => {
+        if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) fail();
+      };
+      check();
+      timers.push(window.setInterval(check, 300));
+      timers.push(window.setTimeout(fail, 5000)); // nothing playing after 5s
+      tryPlay();
+    } else {
+      timers.push(window.setTimeout(fail, 7000));
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Safari / iOS play HLS natively
+        video.addEventListener("error", fail);
+        video.src = HLS_SRC;
+        tryPlay();
+      } else {
+        import("hls.js")
+          .then(({ default: Hls }) => {
+            if (!alive) return;
+            if (!Hls.isSupported()) return fail();
+            const h = new Hls({ capLevelToPlayerSize: true, startLevel: 0, maxBufferLength: 12 });
+            hls = h;
+            h.on(Hls.Events.ERROR, (_e, data) => data.fatal && fail());
+            h.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+            h.loadSource(HLS_SRC);
+            h.attachMedia(video);
+          })
+          .catch(fail);
+      }
+    }
+
+    return () => {
+      alive = false;
+      timers.forEach((t) => {
+        window.clearTimeout(t);
+        window.clearInterval(t);
+      });
+      video.removeEventListener("playing", stopWatching);
+      video.removeEventListener("error", fail);
+      hls?.destroy();
+    };
+  }, [mode, onFail]);
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden bg-black">
+      <video
+        ref={videoRef}
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster={POSTER_SRC}
+        disablePictureInPicture
+        disableRemotePlayback
+        aria-hidden="true"
+        tabIndex={-1}
+      >
+        {mode === "mp4" && MP4_SOURCES.map((src) => <source key={src} src={src} />)}
+      </video>
+    </div>
+  );
+}
+
+/* --------------------------------- iframe ---------------------------------- */
 
 // Start fetching Player.js as soon as this module runs, not after hydration.
 if (typeof window !== "undefined") void loadPlayerJS();
 
-/**
- * Full-bleed 16:9 background loop. The iframe is sized to "cover" the viewport
- * (never distorted — the overflow is cropped) and has pointer-events disabled.
- *
- * Speed: the iframe is part of the server-rendered HTML, so the browser starts
- * loading the video the moment the page arrives, without waiting for any
- * JavaScript. Player.js attaches afterwards and keeps asking the player to
- * report in until it does, so it doesn't matter which one gets there first.
- *
- * Bunny's player shows its own play button before autoplay kicks in. That UI
- * lives inside a cross-origin iframe and can't be styled, so a cover (the
- * video's thumbnail on black) sits on top and fades out as soon as the video
- * is really playing.
- */
-export default function HeroVideo() {
+function IframeHero() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const posterRef = useRef<HTMLImageElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [posterOk, setPosterOk] = useState(true);
-
-  // The poster can fail before hydration (no onError handler attached yet).
-  useEffect(() => {
-    const img = posterRef.current;
-    if (img && img.complete && img.naturalWidth === 0) setPosterOk(false);
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -59,10 +154,9 @@ export default function HeroVideo() {
       const iframe = iframeRef.current;
       if (!alive || !lib || !iframe) return;
       const player = new lib.Player(iframe);
-      // The iframe may already have loaded (and announced itself) before this
-      // code ran, so don't wait for its onload event: allow messages now.
+      // The iframe may already have loaded before this code ran, so don't wait
+      // for its onload event: allow messages now and keep asking until it answers.
       (player as unknown as { loaded: boolean }).loaded = true;
-
       const onReady = () => {
         if (ready) return;
         ready = true;
@@ -70,10 +164,6 @@ export default function HeroVideo() {
         player.mute();
         player.setLoop(true);
         player.play();
-        // "play" can fire while Bunny's play button is still on screen, so
-        // don't lift the cover on it straight away. Lift it as soon as the
-        // video has actually advanced; if no time updates arrive, shortly
-        // after "play" instead.
         player.on("play", () => {
           window.clearTimeout(revealTimer);
           revealTimer = window.setTimeout(reveal, 1200);
@@ -83,7 +173,6 @@ export default function HeroVideo() {
           if (typeof seconds === "number" && seconds > 0.2) reveal();
         });
       };
-      // Ask now, and keep asking until the player answers.
       player.on("ready", onReady);
       poll = window.setInterval(() => {
         if (ready || ++attempts > 20) return window.clearInterval(poll);
@@ -110,7 +199,7 @@ export default function HeroVideo() {
       >
         <iframe
           ref={iframeRef}
-          src={HERO_SRC}
+          src={IFRAME_SRC}
           title="Ephemeral Reverie hero"
           loading="eager"
           tabIndex={-1}
@@ -134,18 +223,13 @@ export default function HeroVideo() {
         className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-700"
         style={{ opacity: playing ? 0 : 1 }}
       >
-        {posterOk && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            ref={posterRef}
-            src={POSTER_SRC}
-            alt=""
-            fetchPriority="high"
-            decoding="async"
-            className="h-full w-full object-cover"
-            onError={() => setPosterOk(false)}
-          />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={POSTER_SRC}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
       </div>
     </div>
   );
