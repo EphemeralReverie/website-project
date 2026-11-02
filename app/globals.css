@@ -68,15 +68,6 @@ textarea:autofill {
 /* ------------------------------------------------------------------ */
 /* Aurora background (21st.dev "Aurora Background", dark variant).      */
 /* Pure CSS: no canvas, no JS, no pointer/touch interaction at all.     */
-/*                                                                      */
-/* Looks identical to the original component. The only difference is    */
-/* HOW the stripes drift: the original animated `background-position`,  */
-/* which forces the browser to repaint a full-screen gradient (plus     */
-/* blur) every frame. Here the stripes live on their own layer that is  */
-/* simply slid sideways with `transform`, which the browser does on the */
-/* graphics card without repainting. The pattern repeats every 2 screen */
-/* widths, so one 2-width slide loops seamlessly (the original needed a */
-/* 3-width slide per 60s; 2 widths per 40s is the same speed).          */
 /* ------------------------------------------------------------------ */
 .aurora-layer {
   --dark-gradient: repeating-linear-gradient(
@@ -100,44 +91,32 @@ textarea:autofill {
   pointer-events: none;
   opacity: 0.5;
   filter: blur(10px);
+  will-change: transform;
   background-image: var(--dark-gradient), var(--aurora);
   background-size: 300%, 200%;
   background-position: 50% 50%, 50% 50%;
   -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
   mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
 }
-/* the "difference"-blended layer: static aurora colours + moving dark stripes */
-.aurora-blend {
+.aurora-layer::after {
+  content: "";
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  background-image: var(--aurora);
-  background-size: 100% 100%;
+  background-image: var(--dark-gradient), var(--aurora);
+  background-size: 200%, 100%;
+  animation: aurora 60s linear infinite;
   mix-blend-mode: difference;
 }
-/* 3.5 screen-widths wide so it still covers the screen at the end of a
-   2-width slide; its stripe pattern tile is 2 screen-widths (= 200/3.5 %). */
-.aurora-stripes {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 350%;
-  background-image: var(--dark-gradient);
-  background-size: 57.142857% 100%;
-  will-change: transform;
-  animation: aurora-drift 40s linear infinite;
-}
-@keyframes aurora-drift {
+@keyframes aurora {
   from {
-    transform: translate3d(-14.285714%, 0, 0); /* -0.5 screen widths */
+    background-position: 50% 50%, 50% 50%;
   }
   to {
-    transform: translate3d(-71.428571%, 0, 0); /* -2.5 screen widths */
+    background-position: 350% 50%, 350% 50%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .aurora-stripes {
+  .aurora-layer::after {
     animation: none;
   }
 }
