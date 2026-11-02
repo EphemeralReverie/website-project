@@ -2,6 +2,11 @@
 // Bunny decides the quality. The iframe is sized to "cover" the viewport (never
 // distorted, the overflow is cropped), is muted and looping, has the player
 // controls switched off, and has pointer events disabled so it can't be clicked.
+//
+// A black layer sits on top for the first half second and then fades away
+// (CSS only, see `.hero-cover` in globals.css). It hides the moment where
+// Bunny's own start-up play button may show. It does not touch the video: the
+// player still streams straight from Bunny at the quality Bunny chooses.
 
 const HERO_SRC =
   "https://player.mediadelivery.net/embed/792798/9c08378f-8829-488b-873b-adaf290b5354" +
@@ -34,6 +39,7 @@ export default function HeroVideo() {
           }}
         />
       </div>
+      <div aria-hidden="true" className="hero-cover pointer-events-none absolute inset-0 bg-black" />
     </div>
   );
 }
