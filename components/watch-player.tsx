@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { loadPlayerJS, type PlayerJSPlayer } from "@/lib/playerjs";
+import { loadPlayerJS, type PlayerJS, type PlayerJSPlayer } from "@/lib/playerjs";
 import { STRIPE_PAYMENT_LINK, type Project } from "@/lib/projects";
 
 const STORAGE_KEY = "unlocked_film_slug";
@@ -14,6 +14,7 @@ export default function WatchPlayer({ project }: { project: Project }) {
   // PlayerJS callbacks outlive renders, so the live value is kept in a ref.
   const unlockedRef = useRef(false);
 
+  const [lib, setLib] = useState<PlayerJS | null | undefined>(undefined); // undefined = still loading
   const [ready, setReady] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -46,56 +47,41 @@ export default function WatchPlayer({ project }: { project: Project }) {
     if (fromQuery || stored === project.slug || stored === "true") markUnlocked();
   }, [project.slug, markUnlocked]);
 
-  // 2) Attach Player.js to the (server-rendered) iframe and watch for "play".
-  //    The video frame itself never waits for this helper, so if the helper is
-  //    slow or blocked the film still shows. The helper keeps asking the player
-  //    to report in until it does, so it doesn't matter who gets there first.
+  // 2) Load Player.js first; the iframe is only created afterwards so the
+  //    library is guaranteed to attach before the player finishes loading.
   useEffect(() => {
     let alive = true;
-    let isReady = false;
-    let attempts = 0;
-    let poll = 0;
-    loadPlayerJS().then((lib) => {
-      const iframe = iframeRef.current;
-      if (!alive || !lib || !iframe) return;
-      const player = new lib.Player(iframe);
-      playerRef.current = player;
-      // The iframe may already have loaded before this code ran, so don't wait
-      // for its onload event: allow messages now.
-      (player as unknown as { loaded: boolean }).loaded = true;
-      const gate = () => {
-        if (unlockedRef.current) return;
-        player.pause(); // the exact moment play starts, stop it…
-        setShowOverlay(true); // …and ask for support
-      };
-      const onReady = () => {
-        if (isReady) return;
-        isReady = true;
-        window.clearInterval(poll);
-        setReady(true);
-        player.on("play", gate);
-        player.on("timeupdate", gate); // safety net if "play" is missed
-      };
-      player.on("ready", onReady);
-      poll = window.setInterval(() => {
-        if (isReady || ++attempts > 40) return window.clearInterval(poll);
-        player.on("ready", onReady);
-      }, 400);
-    });
+    loadPlayerJS().then((l) => alive && setLib(l));
     return () => {
       alive = false;
-      window.clearInterval(poll);
     };
   }, []);
 
-  // 3) Safety net: if the player never reports in (blocked script, protocol
+  // 3) Attach to the iframe and watch for "play".
+  useEffect(() => {
+    if (!lib || !iframeRef.current) return;
+    const player = new lib.Player(iframeRef.current);
+    playerRef.current = player;
+    const gate = () => {
+      if (unlockedRef.current) return;
+      player.pause(); // the exact moment play starts, stop it…
+      setShowOverlay(true); // …and ask for support
+    };
+    player.on("ready", () => {
+      setReady(true);
+      player.on("play", gate);
+      player.on("timeupdate", gate); // safety net if "play" is missed
+    });
+  }, [lib]);
+
+  // 4) Safety net: if the player never reports in (blocked script, protocol
   //    mismatch), put a transparent layer over it so a click still opens the
   //    overlay instead of silently letting the film play for free.
   useEffect(() => {
-    if (ready || unlocked) return;
+    if (lib === undefined || ready || unlocked) return;
     const t = window.setTimeout(() => setShield(true), 3500);
     return () => window.clearTimeout(t);
-  }, [ready, unlocked]);
+  }, [lib, ready, unlocked]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,17 +159,22 @@ export default function WatchPlayer({ project }: { project: Project }) {
     </div>
   );
 
+  // `isolate` + translateZ(0) give the rounded, clipped player box its own drawing
+  // layer. Without it, Safari on Mac can leave the video frame unpainted (black)
+  // until the window is resized or zoomed.
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60">
-      <iframe
-        ref={iframeRef}
-        src={src}
-        title={project.title}
-        loading="eager"
-        style={{ border: 0, position: "absolute", top: 0, height: "100%", width: "100%" }}
-        allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen;"
-        allowFullScreen
-      />
+    <div className="relative isolate aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60 [transform:translateZ(0)]">
+      {lib !== undefined && (
+        <iframe
+          ref={iframeRef}
+          src={src}
+          title={project.title}
+          loading="eager"
+          style={{ border: 0, position: "absolute", top: 0, height: "100%", width: "100%" }}
+          allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen;"
+          allowFullScreen
+        />
+      )}
 
       {shield && !unlocked && !ready && (
         <button
