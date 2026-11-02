@@ -159,8 +159,11 @@ export default function WatchPlayer({ project }: { project: Project }) {
     </div>
   );
 
+  // `isolate` + translateZ(0) give the rounded, clipped player box its own drawing
+  // layer. Without it, Safari on Mac can leave the video frame unpainted (black)
+  // until the window is resized or zoomed.
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60">
+    <div className="relative isolate aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/60 [transform:translateZ(0)]">
       {lib !== undefined && (
         <iframe
           ref={iframeRef}
