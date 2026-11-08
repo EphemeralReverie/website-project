@@ -6,7 +6,7 @@ import { loadPlayerJS, type PlayerJSPlayer } from "@/lib/playerjs";
 import { STRIPE_PAYMENT_LINK, type Project } from "@/lib/projects";
 
 const STORAGE_KEY = "unlocked_film_slug";
-const MIN_CENTS = 200; // $2.00
+const MIN_CENTS = 100; // $1.00
 
 export default function WatchPlayer({ project }: { project: Project }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -18,7 +18,7 @@ export default function WatchPlayer({ project }: { project: Project }) {
   const [ready, setReady] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
-  const [amount, setAmount] = useState("0");
+  const [amount, setAmount] = useState("1"); // starts at $1; visitors can type any amount, or 0 to watch for free
   const [warning, setWarning] = useState(false);
   const [shield, setShield] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -172,13 +172,17 @@ export default function WatchPlayer({ project }: { project: Project }) {
                 setAmount(e.target.value);
                 setWarning(false);
               }}
+              aria-describedby="amount-help"
               className="w-full bg-transparent px-2 py-3 text-base text-white outline-none placeholder:text-white/40"
             />
           </div>
         </label>
+        <p id="amount-help" className="mt-2 text-left text-xs text-white/60">
+          Choose any amount you like
+        </p>
 
         <p role="alert" className={`mt-3 text-sm text-amber-300 ${warning ? "" : "hidden"}`}>
-          Please enter at least $2.00 for a contribution, or enter $0
+          Please enter at least $1.00 for a contribution, or enter $0
         </p>
 
         <button
