@@ -19,7 +19,8 @@ export default function WatchPlayer({ project }: { project: Project }) {
   const [unlocked, setUnlocked] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [amount, setAmount] = useState("1"); // starts at $1; visitors can type any amount, or 0 to watch for free
-  const [warning, setWarning] = useState(false);
+  // Which message to show under the amount box: below the minimum, or not a number.
+  const [message, setMessage] = useState<"min" | "invalid" | null>(null);
   const [shield, setShield] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -118,24 +119,30 @@ export default function WatchPlayer({ project }: { project: Project }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const raw = amount.trim().replace(/^\$/, "").replace(",", ".");
-    const value = raw === "" ? 0 : Number(raw);
-    const cents = Number.isFinite(value) ? Math.round(value * 100) : 0;
 
-    // 0, blank or invalid → free viewing, no redirect
+    // Blank → free viewing, no redirect
+    // Something that is not a number (letters, symbols, a minus sign…) → ask again
+    if (raw !== "" && !/^(\d+\.?\d*|\.\d+)$/.test(raw)) {
+      setMessage("invalid");
+      return;
+    }
+    const cents = raw === "" ? 0 : Math.round(Number(raw) * 100);
+
+    // 0 or blank → free viewing, no redirect
     if (cents <= 0) {
-      setWarning(false);
+      setMessage(null);
       markUnlocked();
       setShowOverlay(false);
       setShield(false);
       playerRef.current?.play();
       return;
     }
-    // $0.01 – $1.99 → below the minimum
+    // $0.01 – $0.99 → below the minimum
     if (cents < MIN_CENTS) {
-      setWarning(true);
+      setMessage("min");
       return;
     }
-    // $2.00 or more → Stripe, amount prefilled in cents
+    // $1.00 or more → Stripe, amount prefilled in cents
     window.location.href = `${STRIPE_PAYMENT_LINK}?prefilled_amount=${cents}`;
   };
 
@@ -170,7 +177,7 @@ export default function WatchPlayer({ project }: { project: Project }) {
               value={amount}
               onChange={(e) => {
                 setAmount(e.target.value);
-                setWarning(false);
+                setMessage(null);
               }}
               aria-describedby="amount-help"
               className="w-full bg-transparent px-2 py-3 text-base text-white outline-none placeholder:text-white/40"
@@ -181,8 +188,11 @@ export default function WatchPlayer({ project }: { project: Project }) {
           Choose any amount you like
         </p>
 
-        <p role="alert" className={`mt-3 text-sm text-amber-300 ${warning ? "" : "hidden"}`}>
+        <p role="alert" className={`mt-3 text-sm text-amber-300 ${message === "min" ? "" : "hidden"}`}>
           Please enter at least $1.00 for a contribution, or enter $0
+        </p>
+        <p role="alert" className={`mt-3 text-sm text-amber-300 ${message === "invalid" ? "" : "hidden"}`}>
+          Please enter a valid number
         </p>
 
         <button
